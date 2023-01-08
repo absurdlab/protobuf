@@ -1,0 +1,260 @@
+syntax = "proto3";
+
+package flow.v1alpha1;
+
+import "client/v1alpha1/client.proto";
+import "shared/v1/error.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+// FlowService is the main service for OpenID Connect flow interaction, which covers user login/logout and user consent.
+// This service is implemented by the Tigerd server. Flow providers uses a generated client to interact with the server.
+//
+// This service supports interaction with both first party flow providers or third party flow providers. First party
+// providers usually require multiple redirection to acquire authentication and user consent in a staged manner. They
+// usually invoke CallbackLogin and CallbackConsent separately. On the other hand, third party providers delegate to
+// external systems for user authentication and consent. They usually invoke CallbackLoginAndConsent to provide all
+// data at once when they receive it from the external system.
+service FlowService {
+  // GetOpenIDConnectState returns the current OpenID Connect flow state. It is usually the first method to call after
+  // receiving a login redirect or a consent redirect. The returned state usually entail two modes of operation: first,
+  // absence of authentication indicates the flow provider should login an end user; second, existence of pending scope
+  // indicates the flow provider should ask for user consent for these scopes.
+  rpc GetOpenIDConnectState(GetOpenIDConnectStateRequest) returns (GetOpenIDConnectStateResponse) {};
+  // CallbackLogin updates the current flow with authentication data. Repeated attempts of authentication is not allowed.
+  rpc CallbackLogin(CallbackLoginRequest) returns (CallbackLoginResponse) {};
+  // CallbackConsent updates the current flow with consent data. Consent decision on unrequested scopes or scopes that
+  // are already decided are silently dropped.
+  rpc CallbackConsent(CallbackConsentRequest) returns (CallbackConsentResponse) {};
+  // CallbackLoginAndConsent is CallbackLogin and CallbackConsent all at once.
+  rpc CallbackLoginAndConsent(CallbackLoginAndConsentRequest) returns (CallbackLoginAndConsentResponse) {};
+}
+
+// GetOpenIDConnectStateRequest is the request payload for FlowService#GetOpenIDConnectState method.
+message GetOpenIDConnectStateRequest {
+  // sid is the identifier of the OpenID Connect session. It is usually passed to the flow provider during the
+  // login or consent redirection.
+  string sid = 1;
+}
+
+// GetOpenIDConnectStateResponse is the response for FlowService#GetOpenIDConnectState method.
+message GetOpenIDConnectStateResponse {
+  // either OpenID Connect state or error.
+  oneof result {
+    OpenIDConnectState state = 1;
+    shared.v1.Error error = 2;
+  }
+}
+
+// CallbackLoginRequest is the request payload for FlowService#CallbackLogin method.
+message CallbackLoginRequest {
+  // sid is the identifier of the OpenID Connect session.
+  string sid = 1;
+  // either success callback or error.
+  oneof callback {
+    Success success = 2;
+    shared.v1.Error error = 3;
+  }
+  // context is optional metadata provided to the flow clipboard. It will be available for subsequent flow calls.
+  map<string, string> context = 4;
+
+  // Success is data for successful authentication.
+  message Success {
+    // auth is authentication state.
+    Authentication auth = 1;
+    // claims is voluntary claims data.
+    ClaimsResponse claims = 2;
+  }
+}
+
+// CallbackLoginResponse is the response for FlowService#CallbackLogin method.
+message CallbackLoginResponse {
+  // redirect_to contains the url the flow provider should redirect user-agent to.
+  string redirect_to = 1;
+}
+
+// CallbackConsentRequest is the request payload for FlowService#CallbackConsent method.
+message CallbackConsentRequest {
+  // sid is the identifier of the OpenID Connect session.
+  string sid = 1;
+  // either success callback or error.
+  oneof callback {
+    Success success = 2;
+    shared.v1.Error error = 3;
+  }
+  // context is optional metadata provided to the flow clipboard. It will be available for subsequent flow calls.
+  map<string, string> context = 4;
+
+  // Success is the data for successful consent.
+  message Success {
+    // scopes are a list of granted or denied scopes. Unrequested scopes or scopes that were already granted or denied
+    // will be ignored by system.
+    repeated Scope scopes = 1;
+    // claims is voluntary claims data.
+    ClaimsResponse claims = 2;
+  }
+}
+
+// CallbackConsentResponse is the response for FlowService#CallbackConsent method.
+message CallbackConsentResponse {
+  // redirect_to contains the url the flow provider should redirect user-agent to.
+  string redirect_to = 1;
+}
+
+// CallbackLoginAndConsentRequest is the request payload for FlowService#CallbackLoginAndConsent method.
+message CallbackLoginAndConsentRequest {
+  // sid is the identifier of the OpenID Connect session.
+  string sid = 1;
+  // either success callback or error.
+  oneof callback {
+    Success success = 2;
+    shared.v1.Error error = 3;
+  }
+  // context is optional metadata provided to the flow clipboard. It will be available for subsequent flow calls.
+  map<string, string> context = 4;
+
+  // Success is the data for successful authentication and consent.
+  message Success {
+    // auth is authentication data.
+    Authentication auth = 1;
+    // scopes are a list of granted or denied scopes.
+    repeated Scope scopes = 2;
+    // claims is voluntary claim data.
+    ClaimsResponse claims = 3;
+  }
+}
+
+// CallbackLoginAndConsentResponse is the response for FlowService#CallbackLoginAndConsent method.
+message CallbackLoginAndConsentResponse {
+  // redirect_to contains the url the flow provider should redirect user-agent to.
+  string redirect_to = 1;
+}
+
+// OpenIDConnectState is the overall progress of the current OpenID Connect request identified by the sid.
+message OpenIDConnectState {
+  // sid is the OpenID Connect session identifier.
+  string sid = 1;
+  // oidc contains essential request parameters.
+  OpenIDConnectParameters oidc = 2;
+  // auth is the authentication data. If unassigned, the flow provider must perform user authentication first.
+  Authentication auth = 3;
+  // consent is the indexed scope state for all requested scopes. All requested scopes are present in the map, and be
+  // in the DECISION_UNSPECIFIED state before authentication. The flow provider should ask user for consent if there is
+  // more than one DECISION_UNSPECIFIED scope.
+  map<string, Scope> consent = 4;
+  // context serves as a shared clipboard between subsequent interactions of the flow. For instance, the flow provider
+  // may set the user display name and avatar URL after authentication, and read it during consent stage. System may
+  // limit the total number of items in this field.
+  map<string, string> context = 5;
+}
+
+// OpenIDConnectParameters contains processed and selected values from the OpenID Connect authentication request that
+// resulted in this interaction flow. These values are helpful for processing the flow interaction and/or displaying
+// user interfaces.
+message OpenIDConnectParameters {
+  // client is the public data of the requesting client.
+  client.v1alpha1.PublicData client = 1;
+  // display is the "display" parameter. It can help determine the proper user interface format.
+  string display = 2;
+  // login_hint is the "login_hint" parameter. Its value is arbitrary, and may help influence the login process.
+  string login_hint = 3;
+  // acr_values is the "acr_values" parameter. Its value is arbitrary, and may help influence the login process.
+  repeated string acr_values = 4;
+  // ui_locales is the "ui_locales" parameter. It can help decide the user interface language.
+  repeated string ui_locales = 5;
+  // projected_claims are the resolved "claims" parameter, which include the original "claims" parameter value and
+  // inferred claim requests from other sources, such as "id_token_hint", "scope".
+  ClaimsRequest projected_claims = 6;
+  // claims_locales is the "claims_locales" parameter.
+  repeated string claims_locales = 7;
+  // access_token_audiences is "aud" claim value for the access_token. Any scope consent by the user agrees to granting
+  // access to all listed audiences. Granting access to a subset of audiences is not supported. When empty, the issued
+  // access_token will be unrestricted in terms of audience.
+  repeated string access_token_audiences = 8;
+  // scopes is the list of requested scopes
+  repeated string scopes = 9;
+  // max_age is the maximum age limit for the authentication to be produced.
+  google.protobuf.Duration max_age = 10;
+}
+
+// ClaimsRequest is the request for claims. It is modelled after the "claims" parameter of the OpenID Connect
+// authentication request. It also includes resolved claim requests from different sources.
+message ClaimsRequest {
+  // id_token contains the request for claims to be made available in the issued id_token. When the "id_token_hint"
+  // parameter is present, the plain text "sub" value (w.r.t subject_type) will be decoded and included as an essential
+  // claim request in both "id_token" and "userinfo" section.
+  map<string, Option> id_token = 1;
+  // userinfo contains the request for claims to be made available in the access_token or in the response of the
+  // userinfo endpoint. When the requested scopes include "email", "address" and/or "profile", their respective implied
+  // claims will be included in the "userinfo" section. The conditional_on_scope value will be set to the corresponding
+  // scope value. Flow provider should provide these implied claims only if their respective scope is granted.
+  map<string, Option> userinfo = 2;
+
+  // Option is the claim option.
+  message Option {
+    // essential indicates it is important to the client that the response claim value is one of the value options.
+    bool essential = 1;
+    // conditional_on_scope indicates the claim should only be provided when this scope is granted.
+    string conditional_on_scope = 2;
+    // values is a list of value options, in order of preference.
+    repeated string values = 3;
+  }
+}
+
+// ClaimsResponse contains claim values to be included in id_token, access_token, and/or the userinfo endpoint. Protected
+// claims included in this response object will be ignored. Such claims include "sub", "auth_time", "amr" and "acr" that
+// are sourced from authentication, and "scope" that are sourced from consent.
+message ClaimsResponse {
+  // id_token contains claims to be made available in the issued id_token. Protected claims are ignored.
+  google.protobuf.Struct id_token = 1;
+  // userinfo contains claims to be made available at the userinfo endpoint. If no access token will be issued, these
+  // claims will be made available in the id_token. Protected claims are ignored.
+  google.protobuf.Struct userinfo = 2;
+}
+
+// Authentication represents user authentication.
+message Authentication {
+  // subject is the immutable identifier of the user. It is strongly discouraged to use user's email or username as
+  // subject value. Instead, use a globally unique random value, such as UUID. Its value is used as the "sub" claim.
+  string subject = 1;
+  // auth_time stamps the time at which authentication is achieved. Its value is used as the "auth_time" claim.
+  google.protobuf.Timestamp auth_time = 2;
+  // amr is an ordered list of authentication methods applied to achieve this authentication. Its value is used as the
+  // "amr" claim.
+  repeated string amr = 3;
+  // acr is the value of authentication context class reference, determined by the flow provider. Its value is used as
+  // the "acr" claim.
+  string acr = 4;
+  // remember_for is the validity period during which this authentication can be reused for future requests, provided
+  // that it fulfills the future request parameters. If non-positive, this authentication is session-only, meaning it
+  // will only apply to current request.
+  google.protobuf.Duration remember_for = 5;
+}
+
+// Consent represents the user consent state.
+message Consent {
+  // scopes indexes each requested scope value and their current status.
+  map<string, Scope> scopes = 1;
+}
+
+// Scope is the detailed status for a requested scope.
+message Scope {
+  // value of the requested scope.
+  bool value = 1;
+  // decision is the
+  Decision decision = 2;
+  // system indicates the decision is made by the system, instead of the actual user. For instance, a grant can be
+  // sourced from past records. Its value can be ignored when decision is DECISION_UNSPECIFIED.
+  bool system = 3;
+  // grant_once indicates the GRANT decision applies to current request only. When true, the system will skip saving
+  // this decision to records.
+  bool grant_once = 4;
+
+  // Decision enumerates scope decisions.
+  enum Decision {
+    DECISION_UNSPECIFIED = 0;
+    DECISION_GRANT = 1;
+    DECISION_DENY = 2;
+  }
+}

@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package shared.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Error is standard error information.
+message Error {
+  // status is the recommended http status.
+  uint32 status = 1;
+  // error is a machine-friendly error code.
+  string error = 2;
+  // error_description is a human-friendly error message.
+  string error_description = 3;
+  // timestamp is a unix timestamp at which the error occurs.
+  google.protobuf.Timestamp timestamp = 4;
+  // context is additional error metadata.
+  map<string, string> context = 5;
+}

@@ -1,0 +1,295 @@
+syntax = "proto3";
+
+package client.v1alpha1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "shared/v1/error.proto";
+
+// ClientService is the main service to register and maintain configuration of a client.
+service ClientService {
+  // RegisterClient registers a new client.
+  //
+  // This method requires "client:register" scope.
+  rpc RegisterClient(RegisterClientRequest) returns (RegisterClientResponse) {};
+  // UpdateClient updates metadata of an existing client.
+  //
+  // This method requires "client:manage" scope.
+  rpc UpdateClient(UpdateClientRequest) returns (UpdateClientResponse) {};
+  // GetClientMetadata returns client's metadata configuration.
+  //
+  // This method requires "client:manage" scope.
+  rpc GetClientMetadata(GetClientMetadataRequest) returns (GetClientMetadataResponse) {};
+  // DeleteClient removes a client.
+  //
+  // This method requires "client:manage" scope.
+  rpc DeleteClient(DeleteClientRequest) returns (DeleteClientResponse) {};
+  // RenewClientSecret generates a new client_secret for the client. Clients whose metadata configuration does not
+  // require client secrets will not generate client secret.
+  //
+  // This method requires "client:manage" scope.
+  rpc RenewClientSecret(RenewClientSecretRequest) returns (RenewClientSecretResponse) {};
+}
+
+// RegisterClientRequest is the request payload of ClientService#RegisterClient.
+message RegisterClientRequest {
+  // metadata is the client's configurable properties. Server will register the client according to the metadata specified.
+  Metadata metadata = 1;
+}
+
+// RegisterClientResponse is the response to ClientService#RegisterClient.
+message RegisterClientResponse {
+  // either success or error.
+  oneof result {
+    Registration client = 1;
+    shared.v1.Error error = 2;
+  }
+}
+
+// UpdateClientRequest is the request payload for ClientService#UpdateClient. A special
+message UpdateClientRequest {
+  // client_id is the identifier of the client to update.
+  string client_id = 1;
+  // metadata is the updated client metadata.
+  Metadata metadata = 2;
+}
+
+// UpdateClientResponse is the response payload for ClientService#UpdateClient.
+message UpdateClientResponse {
+  // either success or error.
+  oneof result {
+    Registration client = 1;
+    shared.v1.Error error = 2;
+  }
+}
+
+// GetClientMetadataRequest is the request payload for ClientService#GetClientMetadata.
+message GetClientMetadataRequest {
+  // client_id is the identifier of the client
+  string client_id = 1;
+}
+
+// GetClientMetadataResponse is the response to ClientService#GetClientMetadata.
+message GetClientMetadataResponse {
+  // either success or error.
+  oneof result {
+    Registration client = 1;
+    shared.v1.Error error = 2;
+  }
+}
+
+// DeleteClientRequest is the request payload for ClientService#DeleteClientRequest.
+message DeleteClientRequest {
+  // client_id is the identifier of the client to delete.
+  string client_id = 1;
+}
+
+// DeleteClientResponse is the response to ClientService#DeleteClientRequest.
+message DeleteClientResponse {
+  // either success or error.
+  oneof result {
+    bool ok = 1;
+    shared.v1.Error error = 2;
+  }
+}
+
+// RenewClientSecretRequest is the request payload to ClientService#RenewClientSecret.
+message RenewClientSecretRequest {
+  // client_id is the identifier of the client whose secret needs to be re-generated.
+  string client_id = 1;
+}
+
+// RenewClientSecretResponse is the response to ClientService#RenewClientSecret.
+message RenewClientSecretResponse {
+  // either success or error.
+  oneof result {
+    Registration client = 1;
+    shared.v1.Error error = 2;
+  }
+}
+
+// PublicData contains all publicly displayable information of a client registration.
+message PublicData {
+  // client_id the identifier of the client.
+  string client_id = 1;
+  // client_name is the name of the client.
+  string client_name = 2;
+  // client_uri is a URL referencing a web page with client's information.
+  string client_uri = 3;
+  // logo_uri is a URL referencing the client's logo.
+  string logo_uri = 4;
+  // policy_uri is a URL referencing a web page containing client's privacy policies.
+  string policy_uri = 5;
+  // tos_uri is a URL referencing a web page containing client's terms of service documents.
+  string tos_uri = 6;
+  // contacts is a list of emails that could be contacted for questions about the client application.
+  repeated string contacts = 7;
+}
+
+// Metadata contains all configurable properties of a client registration. The majority of these properties follow
+// the definitions of OpenID Connect Dynamic Client Registration.
+//
+// See:
+//  - https://openid.net/specs/openid-connect-registration-1_0.html
+message Metadata {
+  // client_name is the name of the client. Server may apply limits on its length.
+  string client_name = 1;
+  // contacts is a list of emails that could be contacted for questions about the client application.
+  repeated string contacts = 2;
+  // logo_uri is a URL referencing the client's logo.
+  string logo_uri = 3;
+  // client_uri is a URL referencing a web page with client's information.
+  string client_uri = 4;
+  // policy_uri is a URL referencing a web page containing client's privacy policies.
+  string policy_uri = 5;
+  // tos_uri is a URL referencing a web page containing client's terms of service documents.
+  string tos_uri = 6;
+  // redirect_uris is a list of redirect_uri allowed by the client.
+  repeated string redirect_uris = 7;
+  // post_logout_redirect_uris is a list of post_logout_redirect_uri allowed by the client.
+  repeated string post_logout_redirect_uris = 8;
+  // response_types is a list of response_type values allowed by the client. Multiple response type is supported. For
+  // example: "code", or "code id_token". Values listed here must be supported by the server.
+  repeated string response_types = 9;
+  // grant_types is a list of grant_type values allowed by the client. Values listed here must be supported by the
+  // server. grant_types and response_types must satisfy certain corresponding relations:
+  //  - When response_types support "code", grant_types must support "authorization_code".
+  //  - When response_types support "token" or "id_token", grant_types must support "implicit".
+  repeated string grant_types = 10;
+  // scopes is a list of scope value allowed by the client.
+  repeated string scopes = 11;
+  // application_type is the declared type of client's application. Supported values include: "web", "native", "spa"
+  // and "machine".
+  string application_type = 12;
+  // jwks_uri is a URL referencing the client's JSON Web Key Set (public keys only). When using jwks_uri, jwks must be
+  // empty.
+  string jwks_uri = 13;
+  // jwks is the value of client's JSON Web Key Set (public keys only). When using jwks, jwks_uri must be empty.
+  string jwks = 14;
+  // subject_type is the subject type preferred by the client. Applicable values include "public" and "pairwise".
+  // Value registered here must be supported by the server.
+  string subject_type = 15;
+  // sector_identifier_uri is a URL used in pseudonymous subject calculation. It is only applicable when subject_type
+  // is "pairwise". This value has no effect when subject_type is "public".
+  string sector_identifier_uri = 16;
+  // id_token_signed_response_alg is the algorithm used to sign the id_token. Values used here must be supported by
+  // the server.
+  string id_token_signed_response_alg = 17;
+  // id_token_encrypted_response_alg is the algorithm used to encrypt the id_token. Values used here must be supported
+  // by the server. id_token_encrypted_response_alg and id_token_encrypted_response_enc must be used together.
+  string id_token_encrypted_response_alg = 18;
+  // id_token_encrypted_response_enc is the algorithm used to encode the id_token encryption. Values used here must be
+  // supported by the server. id_token_encrypted_response_alg and id_token_encrypted_response_enc must be used together.
+  string id_token_encrypted_response_enc = 19;
+  // userinfo_signed_response_alg is the algorithm used to sign the userinfo endpoint response. Values used here must
+  // be supported by the server. By default, when no signature or encryption is specified, userinfo endpoint returns
+  // data in JSON format.
+  string userinfo_signed_response_alg = 20;
+  // userinfo_encrypted_response_alg is the algorithm used to encrypt the userinfo endpoint response. Values used here
+  // must be supported by the server. userinfo_encrypted_response_alg and userinfo_encrypted_response_enc must be used
+  // together.
+  string userinfo_encrypted_response_alg = 21;
+  // userinfo_encrypted_response_enc is the algorithm used to encode the userinfo endpoint encryption response. Values
+  // used here must be supported by the server. userinfo_encrypted_response_alg and userinfo_encrypted_response_enc must
+  // be used together.
+  string userinfo_encrypted_response_enc = 22;
+  // request_object_signing_alg is the algorithm used to sign the request object. Values used here must be supported by
+  // the server.
+  string request_object_signing_alg = 23;
+  // request_object_encryption_alg is the algorithm used to encrypt the request object. Values used here must be
+  // supported by the server. request_object_encryption_alg and request_object_encryption_enc must be used together.
+  string request_object_encryption_alg = 24;
+  // request_object_encryption_enc is the algorithm used to encode the request object encryption. Values used here must
+  // be supported by the server. request_object_encryption_alg and request_object_encryption_enc must be used together.
+  string request_object_encryption_enc = 25;
+  // token_endpoint_auth_method is the authentication method the client must use when visiting the token endpoint.
+  // Applicable values include "client_secret_basic", "client_secret_post" and "private_key_jwt". "client_secret_jwt"
+  // is specifically not supported because it requires usage of client's plain-text secret, but the server does not
+  // store client's plain-text secret due to security reasons. Values used here must also be supported by the server.
+  string token_endpoint_auth_method = 26;
+  // token_endpoint_auth_signing_alg is the signature algorithm used to assist token_endpoint_auth_method. Values used
+  // here must be supported by the server. This value is ignored if token_endpoint_auth_method does not require signing.
+  string token_endpoint_auth_signing_alg = 27;
+  // default_max_age is the default max_age parameter, used to limit the maximum age of user authentication.
+  google.protobuf.Duration default_max_age = 28;
+  // require_auth_time is set to true when "auth_time" claim is required to be included in the id_token.
+  bool require_auth_time = 29;
+  // default_acr_values is a default list of acr_values.
+  repeated string default_acr_values = 30;
+  // request_uris is a list of URLs referencing to client's request object. These URLs may include a fragment component
+  // for verifying the checksum of the object data using SHA-256 algorithm.
+  repeated string request_uris = 31;
+  // interaction_redirect_uri is the base URL to the client's interaction service. The interaction service is a
+  // companion service that provides user authentication and consent to the server. The base URL must have paths of
+  // "/login", "/consent" and "/logout".
+  string interaction_redirect_uri = 32;
+  // prefer_jwt_access_token is set to true when client prefers being issued JWT access token instead of the opaque
+  // access token. This option does not affect the format of Registration#registration_access_token.
+  bool prefer_jwt_access_token = 33;
+  // access_token_audiences is a list of allowed value for access_token_audience
+  repeated string access_token_audiences = 34;
+  // authorization_code_grant_access_token_lifespan_override overrides the default access token lifespan when using the
+  // authorization code grant. Zero value defaults to server configuration.
+  google.protobuf.Duration authorization_code_grant_access_token_lifespan_override = 35;
+  // authorization_code_grant_refresh_token_lifespan_override overrides the default refresh token lifespan when using
+  // the authorization code grant. Zero value defaults to server configuration.
+  google.protobuf.Duration authorization_code_grant_refresh_token_lifespan_override = 36;
+  // authorization_code_grant_id_token_lifespan_override overrides the default id token lifespan when using the
+  // authorization code grant. Zero value defaults to server configuration.
+  google.protobuf.Duration authorization_code_grant_id_token_lifespan_override = 37;
+  // implicit_grant_access_token_lifespan_override overrides the default access token lifespan when using the implicit
+  // grant. Zero value defaults to server configuration.
+  google.protobuf.Duration implicit_grant_access_token_lifespan_override = 38;
+  // implicit_grant_id_token_lifespan_override overrides the default id token lifespan when using the implicit grant.
+  // Zero value defaults to server configuration.
+  google.protobuf.Duration implicit_grant_id_token_lifespan_override = 39;
+  // client_credentials_grant_access_token_lifespan_override overrides the default access token lifespan when using the
+  // client credentials grant. Zero value defaults to server configuration.
+  google.protobuf.Duration client_credentials_grant_access_token_lifespan_override = 40;
+  // refresh_token_grant_access_token_lifespan_override overrides the default access token lifespan when using the
+  // refresh token grant. Zero value defaults to server configuration.
+  google.protobuf.Duration refresh_token_grant_access_token_lifespan_override = 41;
+  // refresh_token_grant_refresh_token_lifespan_override overrides the default refresh token lifespan when using the
+  // refresh token grant. Zero value defaults to server configuration.
+  google.protobuf.Duration refresh_token_grant_refresh_token_lifespan_override = 42;
+  // refresh_token_grant_id_token_lifespan_override overrides the default id token lifespan when using the refresh
+  // token grant. Zero value defaults to server configuration.
+  google.protobuf.Duration refresh_token_grant_id_token_lifespan_override = 43;
+}
+
+// Registration is the full representation of a client.
+message Registration {
+  // client_id is the identifier of the client. It is assigned a random value by the server upon successful
+  // registration and does not change afterwards. This field is read-only.
+  string client_id = 1;
+  // client_id_issued_at is the time at which the client_id is created. This field is read-only.
+  google.protobuf.Timestamp client_id_issued_at = 2;
+  // client_secret is the secret for confidential clients to access the token endpoint. It is assigned a random value
+  // by the server upon successful registration or upon successful secret renewal for clients that require the use of
+  // secret. Public clients (i.e. clients that use only implicit flow) or confidential clients that uses private_key_jwt
+  // as authentication method will not be assigned a client secret, as they are not needed.
+  //
+  // This field contains the plain-text value of the secret only when returning successfully for client registration or
+  // client secret renewal. At all other times, the value of this field is computed by bcrypt(SHA-256(plain-text)). Its
+  // value is considered read-only.
+  string client_secret = 3;
+  // client_secret_expire_at is the time beyond which the client_secret will no longer be in effect. A value of 0 means
+  // the secret does not expire. If a client secret does expire, applications should make sure to renew the secret before
+  // the expiry in order to avoid service interruption. This field is read-only.
+  google.protobuf.Timestamp client_secret_expire_at = 4;
+  // registration_access_token is the access token that can be used to configure the client after registration. The
+  // access token is specific to this client and cannot be used to configure other clients. The token is read-only and
+  // will be regenerated everytime client is updated.
+  string registration_access_token = 5;
+  // registration_client_uri is the full URL at which this client can be configured. This URL is useful for clients
+  // using the JSON API. Calling this URL with http verb PUT modifies the client; DELETE removes the client; and GET
+  // retrieves the client. Clients using the Protobuf API is not concerned with this property. This field is read-only.
+  string registration_client_uri = 6;
+  // registration_client_renew_secret_uri is the full URL at which the client secret can be renewed. This URL is useful
+  // for clients using the JSON API. Calling this URL with http verb POST renews the client secret. Clients using the
+  // Protobuf API is not concerned with this property. This field is read-only.
+  string registration_client_renew_secret_uri = 7;
+  // metadata is client's metadata. It is returned upon successful registration, configuration and retrieval. Metadata
+  // is not returned for secret renewal requests.
+  Metadata metadata = 8;
+}
