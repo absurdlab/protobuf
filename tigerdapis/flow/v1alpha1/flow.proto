@@ -241,7 +241,7 @@ message Consent {
 // Scope is the detailed status for a requested scope.
 message Scope {
   // value of the requested scope.
-  bool value = 1;
+  string value = 1;
   // decision is the
   Decision decision = 2;
   // system indicates the decision is made by the system, instead of the actual user. For instance, a grant can be
